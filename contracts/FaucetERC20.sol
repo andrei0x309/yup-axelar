@@ -74,7 +74,7 @@ contract FaucetERC20 is Initializable, PausableUpgradeable, OwnableUpgradeable, 
         uint curentTime = block.timestamp;
 
         if ( lastClaim > 0 &&  curentTime < lastClaim + maxValidity) {
-            string memory maxValidityS = Strings.toString(curentTime - lastClaim + maxValidity);
+            string memory maxValidityS = Strings.toString((lastClaim + maxValidity) - curentTime);
             revert(string(abi.encodePacked("Claim executed to recently, wait ", maxValidityS, " seconds to try another claim")));
         }
 
