@@ -10,6 +10,7 @@ import crypto from "crypto";
 import {interchainTokenServiceContractABI} from "../abis/interchainTokenServiceABI" 
 import  { tokenAbi } from "../abis/tokenAbi"
 import { getAddresses } from "./utils/addresses";
+import { EVMChainIds } from "./utils/chains";
 import { ethers, upgrades } from "hardhat";
 
   const MINT_BURN = 4;
@@ -20,23 +21,56 @@ import { ethers, upgrades } from "hardhat";
   const test = process.env.IS_TEST === 'true'
 
   
-  let { YUPTOKEN_SAMPLE_FANTOM_PROXY, 
-    YUPTOKEN_SAMPLE_BNB_PROXY, 
-    TM_SALT, TOKEN_MANAGER,
-    YUPTOKEN_SAMPLE_BASE_PROXY,
+  let { 
     owner,
-    TOKEN_ID
-   } = getAddresses( !test )
+    tokenAddresses,
+    tokenIds,
+    tokenManagerAddresses,
+    tokenManagerSalts
+   } = getAddresses()
 
 
-  const fantomToken = YUPTOKEN_SAMPLE_FANTOM_PROXY
-  const bnbToken = YUPTOKEN_SAMPLE_BNB_PROXY
-  const baseToken = YUPTOKEN_SAMPLE_BASE_PROXY
+  const fantomToken = tokenAddresses[EVMChainIds.FANTOM_TESTNET]
+  const bnbToken = tokenAddresses[EVMChainIds.BSC_TESTNET]
+  const baseToken = tokenAddresses[EVMChainIds.BASE_TESTNET]
 
-  if (!fantomToken || !bnbToken) {
+  if (!fantomToken || !bnbToken || !baseToken) {
     throw new Error("Token addresses not found")
   }
 
+  const api = new AxelarQueryAPI({ environment: !test ? Environment.MAINNET : Environment.TESTNET });
+
+  export const gasTokens = {
+      [EVMChainIds.FANTOM_TESTNET]: GasToken.FTM,
+      [EVMChainIds.BSC_TESTNET]: GasToken.BINANCE,
+      [EVMChainIds.BASE_TESTNET]: GasToken.BASE,
+      [EVMChainIds.ETHEREUM_MAINNET]: GasToken.ETH,
+      [EVMChainIds.POLYGON_MAINNET]: GasToken.MATIC,
+      [EVMChainIds.BASE_MAINNET]: GasToken.BASE,
+  }
+  
+  export const axelarChainIdents = {
+      [EVMChainIds.FANTOM_TESTNET]: "Fantom",
+      [EVMChainIds.BSC_TESTNET]: EvmChain.BINANCE,
+      [EVMChainIds.BASE_TESTNET]: 'base-sepolia',
+      [EVMChainIds.ETHEREUM_MAINNET]: EvmChain.ETHEREUM,
+      [EVMChainIds.POLYGON_MAINNET]: EvmChain.POLYGON,
+      [EVMChainIds.BASE_MAINNET]: EvmChain.BASE,
+  }
+  
+  export async function gasEstimator(sourceChain: number, destChain: number) {    
+     const sourceChainIdent = axelarChainIdents[sourceChain];
+     const destChainIdent = axelarChainIdents[destChain];
+  
+    const gas = await api.estimateGasFee(
+      sourceChainIdent,
+      destChainIdent,
+      790000
+    );
+  
+    return gas;
+  }
+  
 
   async function getSigner() {
     const [signer] = await ethers.getSigners();
@@ -96,22 +130,7 @@ async function deployTokenManager() {
   );
 }
 
-const api = new AxelarQueryAPI({ environment: Environment.TESTNET });
-
-// Estimate gas costs
-async function gasEstimator() {
-  const gas = await api.estimateGasFee(
-    EvmChain.FANTOM,
-    EvmChain.BINANCE,
-    GasToken.FTM,
-    750000,
-    1.2
-  );
-
-  return gas;
-}
-
-async function deployRemoteTokenManager() {
+async function deployRemoteTokenManager(chainId: number, destChainId: number) {
   // Get a signer to sign the transaction
   const signer = await getSigner();
 
@@ -129,18 +148,23 @@ async function deployRemoteTokenManager() {
     [signer.address, bnbToken]
   );
 
-  const gasAmount = await gasEstimator();
-  console.log("Estimated gas amount: ", gasAmount, "Salt: ", TM_SALT, "Params: ", params, "Token: ", bnbToken);
+  const gasAmount = await gasEstimator(chainId, destChainId);
+
+  const gasPrice = await ethers.provider.getFeeData();
+  const gasPriceValue = (gasPrice.gasPrice ??  0n) + ((gasPrice.gasPrice ?? 0n) / 30n)
+
   let deployTxData: any;
   try {
   // Deploy the token manager
   deployTxData = await interchainTokenServiceContract.deployTokenManager(
-    TM_SALT, // change salt
-    "binance",
+    tokenManagerSalts[chainId], // change salt
+    axelarChainIdents[destChainId],
     MINT_BURN,
     params,
-    ethers.parseEther("0.01"),
-    { value: gasAmount }
+    gasPriceValue,
+    {
+      value: gasAmount,
+    }
   );
 
 } catch (error: any) {
@@ -154,7 +178,7 @@ async function deployRemoteTokenManager() {
   // Get the tokenId
   const tokenId = await interchainTokenServiceContract.interchainTokenId(
     signer.address,
-    TM_SALT
+    tokenManagerSalts[chainId]
   );
 
   // Get the token manager address
@@ -170,9 +194,10 @@ async function deployRemoteTokenManager() {
   );
 }
 
-async function transferMintAccessToTokenManagerOnFantom(token: string, tokenManagerAddr: string) {
+async function transferMintAccessToTokenManager(token: string, chainId: number) {
   // Get a signer to sign the transaction
   const signer = await getSigner();
+  console.info("Add Role: token: ", token,  "chainId: ", chainId, "tokenManagerAddress: ", tokenManagerAddresses[chainId])
 
   const tokenContract = await getContractInstance(
     token,
@@ -185,14 +210,14 @@ async function transferMintAccessToTokenManagerOnFantom(token: string, tokenMana
 
   const grantRoleTxn = await tokenContract.grantRole(
     getMinterRole,
-    tokenManagerAddr
+    tokenManagerAddresses[chainId]
   );
 
   console.log("grantRoleTxn: ", grantRoleTxn.hash);
 }
 
 
-async function transferTokens() {
+async function transferTokens(chainId: number, destChainId: number) {
   // Get a signer to sign the transaction
   const signer = await getSigner();
 
@@ -201,19 +226,19 @@ async function transferTokens() {
     interchainTokenServiceContractABI,
     signer
   );
-  const gasAmount = await gasEstimator();
+  const gasAmount = await gasEstimator(chainId, destChainId);
   let transfer: any;
   try {
   transfer = await interchainTokenServiceContract.interchainTransfer(
-    TOKEN_ID,
-    "base-sepolia",
+    tokenIds[EVMChainIds.FANTOM_TESTNET],
+    axelarChainIdents[destChainId],
     owner,
     ethers.parseEther("100"), 
     "0x",
-    ethers.parseEther("0.01"), // gasValue
+    gasAmount,
     {
       // Transaction options should be passed here as an object
-      value: gasAmount,
+      value: '0x',
     }
   );
   } catch (error: any) {
@@ -223,6 +248,7 @@ async function transferTokens() {
   console.log("Transfer Transaction Hash:", transfer.hash);
 }
 
-transferTokens().then(() => {
-  console.log("Tokens transferred successfully");
+transferMintAccessToTokenManager(baseToken, EVMChainIds.BSC_TESTNET).then(() => {
+  console.log("Done");
 });
+

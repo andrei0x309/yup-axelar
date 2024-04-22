@@ -1,12 +1,14 @@
 import { ethers, upgrades } from "hardhat";
 import { getAddresses } from "./utils/addresses";
+import { EVMChainIds } from "./utils/chains";
+
 
 const test = process.env.IS_TEST === 'true'
 const isFantom = process.env.IS_FANTOM === 'true'
 const isBsc = process.env.IS_BSC === 'true'
 const isBase = process.env.IS_BASE === 'true'
 
-let { YUPTOKEN_SAMPLE_FANTOM_PROXY, YUPTOKEN_SAMPLE_BNB_PROXY, YUPTOKEN_SAMPLE_BASE_PROXY, owner } = getAddresses( !test )
+let { tokenAddresses, owner, BASE_FAUCET_TESTNET } = getAddresses( )
 
 const mintAddressess = [
   "0x01Ca6f13E48fC5E231351bA38e7E51A1a7835d8D",
@@ -15,7 +17,7 @@ const mintAddressess = [
 
 const mintAmount = 5000
 
-export const deployOrUpdateYupTokenSample = async (token: string, test = true) => {
+export const deployOrUpdateYupTokenSample = async (token: string) => {
 
     const args = [owner]
     
@@ -46,28 +48,59 @@ export const deployOrUpdateYupTokenSample = async (token: string, test = true) =
     console.log(
       `Contract [ YupTokenSample ] [${status}] to: ${contractAddress}`
     );
-
-    for (let i = 0; i < mintAddressess.length; i++) {
-      const contract = await Contract.attach(contractAddress)
-      const mintArgs =  [mintAddressess[i], ethers.parseEther(mintAmount.toString())]
-      console.log("Minting to: ", mintAddressess[i])
-      const tx = await contract.mint(...mintArgs)
-    }
   }
 
+
+  export const deployOrUpdateTestnetFaucet = async () => {
+
+    const maxValidity = 60 * 10 // 10 minutes
+    const token = tokenAddresses[EVMChainIds.BASE_TESTNET]
+
+    const args = [owner, token, maxValidity]
+    
+    const Contract = await ethers.getContractFactory("FaucetERC20");
+    
+    let faucet = BASE_FAUCET_TESTNET
+
+    let status = "deployed"
+    
+    const existing = faucet && await ethers.getContractAt("FaucetERC20", faucet) || null
+    let contractAddress = faucet
+ 
+  
+    if (!existing) {
+      const contract = await upgrades.deployProxy(Contract, args, {
+        initializer: 'initialize',
+        kind: 'uups'
+      });
+    
+      contractAddress = await contract.getAddress()
+
+    } else {
+      upgrades.upgradeProxy(existing, Contract)
+      status = "upgraded"
+      contractAddress = faucet
+    }
+    
+    console.log(
+      `Contract [ FaucetERC20 ] [${status}] to: ${contractAddress}`
+    );
+  }
 
 async function main() {
   console.log("Deploying contracts..., test: ", test, " isFantom: ", isFantom)
 
-  if (isFantom) {
-    await deployOrUpdateYupTokenSample(YUPTOKEN_SAMPLE_FANTOM_PROXY, test)
-  } else if (isBsc) {
-    await deployOrUpdateYupTokenSample(YUPTOKEN_SAMPLE_BNB_PROXY, test)
-  } else if (isBase) {
-    await deployOrUpdateYupTokenSample(YUPTOKEN_SAMPLE_BASE_PROXY, test)
-  } else {
-    console.log("Invalid network")
-  }
+  // if (isFantom) {
+  //   await deployOrUpdateYupTokenSample(tokenAddresses[EVMChainIds.FANTOM_TESTNET])
+  // } else if (isBsc) {
+  //   await deployOrUpdateYupTokenSample(tokenAddresses[EVMChainIds.BSC_TESTNET])
+  // } else if (isBase) {
+  //   await deployOrUpdateYupTokenSample(tokenAddresses[EVMChainIds.BASE_TESTNET])
+  // } else {
+  //   console.log("Invalid network")
+  // }
+
+  deployOrUpdateTestnetFaucet()
 }
 
 // We recommend this pattern to be able to use async/await everywhere

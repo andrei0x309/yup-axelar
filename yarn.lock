@@ -45,10 +45,10 @@
   resolved "https://registry.npmjs.org/@axelar-network/axelar-cgp-solidity/-/axelar-cgp-solidity-4.5.0.tgz#f0456a2a6665302613a4d5243282ce1b18842348"
   integrity sha512-4F4rmHei0cmzeUR7/mW4Bap5rc/KlPV2crD9HA7HTRfl15mVcN6/3z8p+pAm9We6bOrQplNW9KBZ3HJFP3C1Gw==
 
-"@axelar-network/axelarjs-sdk@0.13.9":
-  version "0.13.9"
-  resolved "https://registry.npmjs.org/@axelar-network/axelarjs-sdk/-/axelarjs-sdk-0.13.9.tgz#e587728e6a62911c7c20838ed0a074a0d5c04d0d"
-  integrity sha512-c7UooF1/2V51LAB936GOHRxMtautB7uGXW3QfeEufzoBAPx2Sfx2IB8pT7KHaohdY4zZUI8lVYRNogOVeZhjpg==
+"@axelar-network/axelarjs-sdk@^0.15.0":
+  version "0.15.0"
+  resolved "https://registry.npmjs.org/@axelar-network/axelarjs-sdk/-/axelarjs-sdk-0.15.0.tgz#eec92763d53069ae58741aadc50754c3d76429bd"
+  integrity sha512-7DSO/loMu/3p592WZ7rXtL0uUyLgSi5c7JH26OCR2WElzhobScM6twb1JUi+Gu9u3OcrFPJZyBLd/COIVY6S7A==
   dependencies:
     "@axelar-network/axelar-cgp-solidity" "^4.5.0"
     "@axelar-network/axelarjs-types" "^0.33.0"
