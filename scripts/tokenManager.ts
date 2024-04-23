@@ -81,7 +81,7 @@ import { ethers, upgrades } from "hardhat";
     return new ethers.Contract(contractAddress, contractABI, signer);
   }
 
-async function deployTokenManager() {
+async function deployTokenManager(sourceChain: number) {
   // Get a signer to sign the transaction
   const signer = await getSigner();
 
@@ -98,7 +98,7 @@ async function deployTokenManager() {
 
   const params = defaultAbiCoder.encode(
     ["bytes", "address"],
-    [signer.address, fantomToken]
+    [signer.address, tokenAddresses[sourceChain]]
   );
 
   // Deploy the token manager
@@ -145,7 +145,7 @@ async function deployRemoteTokenManager(chainId: number, destChainId: number) {
 
   const params = defaultAbiCoder.encode(
     ["bytes", "address"],
-    [signer.address, bnbToken]
+    [signer.address, tokenAddresses[destChainId]]
   );
 
   const gasAmount = await gasEstimator(chainId, destChainId);
@@ -153,7 +153,10 @@ async function deployRemoteTokenManager(chainId: number, destChainId: number) {
   const gasPrice = await ethers.provider.getFeeData();
   const gasPriceValue = (gasPrice.gasPrice ??  0n) + ((gasPrice.gasPrice ?? 0n) / 30n)
 
+  
   let deployTxData: any;
+  console.log("Deploying token manager, chainId: ", chainId, "destChainId: ", destChainId, "destChainIdent: ", axelarChainIdents[destChainId], "gasAmount: ", gasAmount, "gasPriceValue: ", gasPriceValue)
+
   try {
   // Deploy the token manager
   deployTxData = await interchainTokenServiceContract.deployTokenManager(
@@ -197,7 +200,7 @@ async function deployRemoteTokenManager(chainId: number, destChainId: number) {
 async function transferMintAccessToTokenManager(token: string, chainId: number) {
   // Get a signer to sign the transaction
   const signer = await getSigner();
-  console.info("Add Role: token: ", token,  "chainId: ", chainId, "tokenManagerAddress: ", tokenManagerAddresses[chainId])
+  console.info("Add Role: token: ", token, "chainId: ", chainId, "tokenManagerAddress: ", tokenManagerAddresses[chainId])
 
   const tokenContract = await getContractInstance(
     token,
@@ -248,7 +251,7 @@ async function transferTokens(chainId: number, destChainId: number) {
   console.log("Transfer Transaction Hash:", transfer.hash);
 }
 
-transferMintAccessToTokenManager(baseToken, EVMChainIds.BSC_TESTNET).then(() => {
+transferMintAccessToTokenManager(bnbToken, EVMChainIds.BASE_TESTNET).then(() => {
   console.log("Done");
 });
 
