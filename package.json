@@ -8,7 +8,7 @@
     "deploy:fantom": "cross-env IS_TEST=true IS_FANTOM=true hardhat run --network fantomTest scripts/deploy.ts",
     "deploy:bnb": "cross-env IS_TEST=true IS_BSC=true hardhat run --network bnbTest scripts/deploy.ts",
     "deploy:base": "cross-env IS_TEST=true IS_BASE=true hardhat run --network baseTest scripts/deploy.ts",
-    "deploy:tm": "cross-env IS_TEST=true hardhat run --network bnbTest scripts/tokenManager.ts",
+    "deploy:tm": "cross-env IS_TEST=true hardhat run --network baseTest scripts/tokenManager.ts",
     "actions": "cross-env IS_TEST=true hardhat run --network baseTest scripts/actions.ts"
   },
   "author": "",

@@ -14,6 +14,7 @@ import { EVMChainIds } from "./utils/chains";
 import { ethers, upgrades } from "hardhat";
 
   const MINT_BURN = 4;
+  const MINT_BURN_FROM = 1;
   
   const interchainTokenServiceContractAddress =
     "0xB5FB4BE02232B1bBA4dC8f81dc24C26980dE9e3C";
@@ -81,7 +82,7 @@ import { ethers, upgrades } from "hardhat";
     return new ethers.Contract(contractAddress, contractABI, signer);
   }
 
-async function deployTokenManager(sourceChain: number) {
+async function deployTokenManager(sourceChain: number, salt: string = '') {
   // Get a signer to sign the transaction
   const signer = await getSigner();
 
@@ -92,7 +93,9 @@ async function deployTokenManager(sourceChain: number) {
     signer
   );
 
-  const salt = "0x" + crypto.randomBytes(32).toString("hex");
+  if(!salt) {
+    salt = '0x' + crypto.randomBytes(32).toString('hex');
+  }
 
   const defaultAbiCoder = ethers.AbiCoder.defaultAbiCoder();
 
@@ -105,7 +108,7 @@ async function deployTokenManager(sourceChain: number) {
   const deployTxData = await interchainTokenServiceContract.deployTokenManager(
     salt,
     "",
-    MINT_BURN,
+    MINT_BURN_FROM,
     params,
     ethers.parseEther("0.01")
   );
@@ -130,77 +133,77 @@ async function deployTokenManager(sourceChain: number) {
   );
 }
 
-async function deployRemoteTokenManager(chainId: number, destChainId: number) {
-  // Get a signer to sign the transaction
-  const signer = await getSigner();
+// async function deployRemoteTokenManager(chainId: number, destChainId: number) {
+//   // Get a signer to sign the transaction
+//   const signer = await getSigner();
 
-  // Get the InterchainTokenService contract instance
-  const interchainTokenServiceContract = await getContractInstance(
-    interchainTokenServiceContractAddress,
-    interchainTokenServiceContractABI,
-    signer
-  );
+//   // Get the InterchainTokenService contract instance
+//   const interchainTokenServiceContract = await getContractInstance(
+//     interchainTokenServiceContractAddress,
+//     interchainTokenServiceContractABI,
+//     signer
+//   );
 
-  const defaultAbiCoder = ethers.AbiCoder.defaultAbiCoder();
+//   const defaultAbiCoder = ethers.AbiCoder.defaultAbiCoder();
 
-  const params = defaultAbiCoder.encode(
-    ["bytes", "address"],
-    [signer.address, tokenAddresses[destChainId]]
-  );
+//   const params = defaultAbiCoder.encode(
+//     ["bytes", "address"],
+//     [signer.address, tokenAddresses[destChainId]]
+//   );
 
-  const gasAmount = await gasEstimator(chainId, destChainId);
+//   const gasAmount = await gasEstimator(chainId, destChainId);
 
-  const gasPrice = await ethers.provider.getFeeData();
-  const gasPriceValue = (gasPrice.gasPrice ??  0n) + ((gasPrice.gasPrice ?? 0n) / 30n)
+//   const gasPrice = await ethers.provider.getFeeData();
+//   const gasPriceValue = (gasPrice.gasPrice ??  0n) + ((gasPrice.gasPrice ?? 0n) / 30n)
 
   
-  let deployTxData: any;
-  console.log("Deploying token manager, chainId: ", chainId, "destChainId: ", destChainId, "destChainIdent: ", axelarChainIdents[destChainId], "gasAmount: ", gasAmount, "gasPriceValue: ", gasPriceValue)
+//   let deployTxData: any;
+//   console.log("Deploying token manager, chainId: ", chainId, "destChainId: ", destChainId, "destChainIdent: ", axelarChainIdents[destChainId], "gasAmount: ", gasAmount, "gasPriceValue: ", gasPriceValue)
 
-  try {
-  // Deploy the token manager
-  deployTxData = await interchainTokenServiceContract.deployTokenManager(
-    tokenManagerSalts[chainId], // change salt
-    axelarChainIdents[destChainId],
-    MINT_BURN,
-    params,
-    gasPriceValue,
-    {
-      value: gasAmount,
-    }
-  );
+//   try {
+//   // Deploy the token manager
+//   deployTxData = await interchainTokenServiceContract.deployTokenManager(
+//     tokenManagerSalts[chainId], // change salt
+//     axelarChainIdents[destChainId],
+//     MINT_BURN,
+//     params,
+//     gasPriceValue,
+//     {
+//       value: gasAmount,
+//     }
+//   );
 
-} catch (error: any) {
-  // console.log("Error deploying token manager: ", error)
-  console.log(interchainTokenServiceContract.interface.parseError(error.data))
-  return;
-}
+// } catch (error: any) {
+//   // console.log("Error deploying token manager: ", error)
+//   console.log(interchainTokenServiceContract.interface.parseError(error.data))
+//   return;
+// }
 
-  console.log("Deploying token manager...");
+//   console.log("Deploying token manager...");
 
-  // Get the tokenId
-  const tokenId = await interchainTokenServiceContract.interchainTokenId(
-    signer.address,
-    tokenManagerSalts[chainId]
-  );
+//   // Get the tokenId
+//   const tokenId = await interchainTokenServiceContract.interchainTokenId(
+//     signer.address,
+//     tokenManagerSalts[chainId]
+//   );
 
-  // Get the token manager address
-  const expectedTokenManagerAddress =
-    await interchainTokenServiceContract.tokenManagerAddress(tokenId);
+//   // Get the token manager address
+//   const expectedTokenManagerAddress =
+//     await interchainTokenServiceContract.tokenManagerAddress(tokenId);
 
-  console.log(
-    `
-	Transaction Hash: ${deployTxData.hash},
-	Token ID: ${tokenId},
-	Expected token manager address: ${expectedTokenManagerAddress},
-	`
-  );
-}
+//   console.log(
+//     `
+// 	Transaction Hash: ${deployTxData.hash},
+// 	Token ID: ${tokenId},
+// 	Expected token manager address: ${expectedTokenManagerAddress},
+// 	`
+//   );
+// }
 
-async function transferMintAccessToTokenManager(token: string, chainId: number) {
+async function transferMintAccessToTokenManager(token: string, production = false) {
   // Get a signer to sign the transaction
   const signer = await getSigner();
-  console.info("Add Role: token: ", token, "chainId: ", chainId, "tokenManagerAddress: ", tokenManagerAddresses[chainId])
+  console.info("Add Role: token: ", token, "production: ", production, "tokenManagerAddress: ", tokenManagerAddresses[production ? 'production' : 'development'])
 
   const tokenContract = await getContractInstance(
     token,
@@ -213,7 +216,7 @@ async function transferMintAccessToTokenManager(token: string, chainId: number) 
 
   const grantRoleTxn = await tokenContract.grantRole(
     getMinterRole,
-    tokenManagerAddresses[chainId]
+    tokenManagerAddresses[production ? 'production' : 'development']
   );
 
   console.log("grantRoleTxn: ", grantRoleTxn.hash);
@@ -251,7 +254,7 @@ async function transferTokens(chainId: number, destChainId: number) {
   console.log("Transfer Transaction Hash:", transfer.hash);
 }
 
-transferMintAccessToTokenManager(bnbToken, EVMChainIds.BASE_TESTNET).then(() => {
+transferMintAccessToTokenManager(baseToken).then(() => {
   console.log("Done");
 });
 
